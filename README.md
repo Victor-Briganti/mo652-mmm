@@ -6,3 +6,13 @@ cd ~/spack/var/spack/environments/trab02/.spack-env/view/include
 ln -s $(spack location -i openblas)/include/openblas/cblas.h .
 ln -s $(spack location -i openblas)/include/openblas/openblas_config.h .
 ```
+
+
+O algoritmo base sendo utilizado na versão do MPI é o chamado SUMMA.
+
+
+O comando usado para build desse sistema é o:
+```bash
+cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
