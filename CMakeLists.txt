@@ -1,8 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(MMM C CXX)
+project(MMM C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
 
 find_package(MPI REQUIRED)
 

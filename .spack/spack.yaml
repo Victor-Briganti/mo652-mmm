@@ -1,0 +1,13 @@
+# This is a Spack Environment file.
+#
+# It describes a set of packages to be installed, along with
+# configuration settings.
+spack:
+  # add package specs to the `specs` list
+  specs:
+  - ucx+cma+dc+ib_hw_tm+mlx5_dv+rc+rdmacm+ud+verbs %gcc@12.4.0
+  - mpich@5.0.1 device=ch4 netmod=ucx %gcc@12.4.0
+  - openblas@0.3.34~bignuma~ilp64+ipo+pic+shared build_system=cmake threads=openmp %gcc@12.4.0
+  view: true
+  concretizer:
+    unify: true

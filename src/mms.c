@@ -1,59 +1,44 @@
 #include "utils.h"
 #include <stdlib.h>
 
-typedef struct timespec timespec;
-
-//===------------------------------------------------------------------------===
-// Matrix
-//===------------------------------------------------------------------------===
-
-static inline void matmul(const float *A, const float *B, float *restrict C,
-                          size_t N) {
-  for (size_t i = 0; i < N; i++) {
-    for (size_t j = 0; j < N; j++) {
-      for (size_t k = 0; k < N; k++) {
-        C[i * N + j] += A[i * N + k] * B[k * N + j];
-      }
-    }
-  }
-}
-
 //===------------------------------------------------------------------------===
 // Main
 //===------------------------------------------------------------------------===
 
 int main(int argc, char **argv) {
-  if (argc < 3) {
-    fprintf(stderr, "Wrong number of arguments\n");
-    fprintf(stderr, "Example Usage: %s <N> output.csv\n", argv[0]);
-    return -1;
+  Parameters opts;
+  if (!parse_options(argc, argv, &opts)) {
+    usage(argv[0]);
+    return EXIT_FAILURE;
   }
 
-  int64_t N = atoll(argv[1]);
-  if (N < 0) {
-    fprintf(stderr, "N should not be a negative number\n");
-    return -1;
-  }
-
-
-  TimeSpend timer;
-  FILE *file = fopen(argv[3], "w");
+  size_t N = (size_t)opts.N;
   float *A = malloc(sizeof(float) * N * N);
   float *B = malloc(sizeof(float) * N * N);
   float *C = calloc(N * N, sizeof(float));
   matrix_fill(A, N);
   matrix_fill(B, N);
 
+  TimeSpend timer;
   start_time(&timer);
-  matmul(A, B, C, N);
+  sgemm(A, B, C, N);
   finish_time(&timer);
 
-  matrix_print(C, N, file);
-  fprintf(stdout, "1,1,%lux%lu,%ld\n", N, N, elapsed_time(&timer));
+  if (opts.output) {
+    FILE *file = fopen(opts.output, "w");
+    if (file == NULL) {
+      fprintf(stderr, "Could not open file %s\n", opts.output);
+      MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+      return EXIT_FAILURE;
+    }
+
+    matrix_print(C, opts.N, file);
+  }
+
+  print_result("serial", 1, 1, 1, 1, opts.N, 0,  elapsed_time(&timer), NULL);
 
   free(A);
   free(B);
   free(C);
-  fclose(file);
-  return 0;
+  return EXIT_SUCCESS;
 }

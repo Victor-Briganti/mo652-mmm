@@ -18,6 +18,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Wrong number of arguments")
         print(f"Usage: {sys.argv[0]} <matrix_size> <compare_file>")
+        sys.exit(-1)
 
     N = int(sys.argv[1])
     C = matmul(N)
