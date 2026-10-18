@@ -1,3 +1,4 @@
+#include "utils.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,36 +6,37 @@
 
 typedef struct timespec timespec;
 
-void mat_print(float *A, size_t size, FILE *file) {
-  for (size_t i = 0; i < size; i++) {
-    for (size_t j = 0; j < size; j++) {
-      fprintf(file, "%f", A[i * size + j]);
+//===------------------------------------------------------------------------===
+// Matrix
+//===------------------------------------------------------------------------===
 
-      if (j < size - 1) {
-        fprintf(file, ",");
+static inline void matmul(const float *A, const float *B, float *restrict C,
+                          size_t N) {
+  for (size_t i = 0; i < N; i++) {
+    for (size_t j = 0; j < N; j++) {
+      for (size_t k = 0; k < N; k++) {
+        C[i * N + j] += A[i * N + k] * B[k * N + j];
       }
     }
-    fprintf(file, "\n");
   }
 }
 
-void mat_alloc(float *A, size_t size) {
-  float x = 0.0;
-  for (size_t i = 0; i < size; i++) {
-    for (size_t j = 0; j < size; j++) {
-      A[i * size + j] = x;
-      x++;
-    }
-  }
-}
+//===------------------------------------------------------------------------===
+// Main
+//===------------------------------------------------------------------------===
 
 int main(int argc, char **argv) {
   if (argc < 3) {
     fprintf(stderr, "Wrong number of arguments\n");
-    fprintf(stderr, "Usage: %s <matrix_size> <output>\n", argv[0]);
+    fprintf(stderr, "Example Usage: %s <N> output.csv\n", argv[0]);
+    return -1;
   }
 
-  uint64_t N = atoll(argv[1]);
+  int64_t N = atoll(argv[1]);
+  if (N < 0) {
+    fprintf(stderr, "N should not be a negative number\n");
+    return -1;
+  }
 
   timespec before;
   timespec after;
@@ -45,21 +47,14 @@ int main(int argc, char **argv) {
   float *B = malloc(sizeof(float) * N * N);
   float *C = calloc(N * N, sizeof(float));
 
-  mat_alloc(A, N);
-  mat_alloc(B, N);
+  matrix_fill(A, N);
+  matrix_fill(B, N);
 
   clock_gettime(CLOCK_MONOTONIC, &before);
-  for (uint64_t i = 0; i < N; i++) {
-    for (uint64_t j = 0; j < N; j++) {
-      for (uint64_t k = 0; k < N; k++) {
-        C[i * N + j] += A[i * N + k] * B[k * N + j];
-      }
-    }
-  }
+  matmul(A, B, C, N);
   clock_gettime(CLOCK_MONOTONIC, &after);
 
-  mat_print(C, N, file);
-
-  fprintf(stdout, "%lux%lu,%ld\n", N, N, after.tv_nsec - before.tv_nsec);
+  matrix_print(C, N, file);
+  fprintf(stdout, "1,1,%lux%lu,%ld\n", N, N, elapsed_time(before, after));
   return 0;
 }
