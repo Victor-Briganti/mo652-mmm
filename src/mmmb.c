@@ -1,118 +1,97 @@
+#include "utils.h"
 #include <cblas.h>
-#include <mpi.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
 
-#define ROOT (0)
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
+//===------------------------------------------------------------------------===
+// SUMMA (Scalable Universal Matrix Multiplication Algorithm)
+//===------------------------------------------------------------------------===
 
-typedef struct timespec timespec;
+/// Executes parallel matrix multiplication using the SUMMA algorithm.
+///
+/// Decompose the global matrix across a 2D cartesian grid of processes. In each
+/// iteration, ranks broadcast a narrow slice ("panel") of A along their row and
+/// a slice of B down their column, updating their local submatrix C.
+///
+/// Once all panels are processed, the distributed blocks of C are gathered and
+/// unpacked into standard row-major order on the root rank.
+static TimeSpend summa(MpiContext *ctx) {
+  TimeSpend timer;
 
-static int gcd(int a, int b) {
-  while (b != 0) {
-    int t = a % b;
-    a = b;
-    b = t;
-  }
+  // Syncrhonize all ranks before measuring time
+  MPI_Barrier(ctx->cart.commGrid);
+  start_time(&timer);
+  for (int s = 0; s < ctx->data.steps; s++) {
+    // Matrix coordinate where the tile begins
+    int k0 = s * ctx->data.panel;
 
-  return a;
-}
+    // Defines the process number that owns this slice of A
+    int aOwner = k0 / ctx->data.nb;
+    // Local column offset inside the local block `Al`
+    int aOffset = k0 % ctx->data.nb;
 
-static void mat_fill(float *A, size_t size) {
-  float x = 0.0;
-  for (size_t i = 0; i < size; i++) {
-    for (size_t j = 0; j < size; j++) {
-      A[i * size + j] = x;
-      x++;
-    }
-  }
-}
-
-static void mat_print(float *A, size_t size, FILE *file) {
-  for (size_t i = 0; i < size; i++) {
-    for (size_t j = 0; j < size; j++) {
-      fprintf(file, "%f", A[i * size + j]);
-
-      if (j < size - 1) {
-        fprintf(file, ",");
+    // If this process is the owner, extract the vertical strip into Ap
+    if (ctx->cart.y == aOwner) {
+      // Here we are packing the column of the matrix in a contiguous
+      // allocation.
+      for (int i = 0; i < ctx->data.mb; i++) {
+        size_t panelIdx = (size_t)i * ctx->data.panel;
+        size_t localIdx = (size_t)i * ctx->data.nb + aOffset;
+        memcpy(&ctx->data.Ap[panelIdx], &ctx->data.Al[localIdx],
+               ctx->data.panel * sizeof(float));
       }
     }
-    fprintf(file, "\n");
+    // Broadcast the Ap to all processes in the same row.
+    MPI_Bcast(ctx->data.Ap, ctx->data.mb * ctx->data.panel, MPI_FLOAT, aOwner,
+              ctx->cart.commRow);
+
+    // Defines the process number that owns this slice of B
+    int bOwner = k0 / ctx->data.mb;
+    // Local column offset inside the local block Bl
+    int bOffset = k0 % ctx->data.mb;
+
+    // The owner already has contiguous rows in memory, so it points directly
+    // into Bl. No-owners receive into the temporary Bl buffer
+    float *B = (ctx->cart.x == bOwner)
+                   ? &ctx->data.Bl[(size_t)bOffset * ctx->data.nb]
+                   : ctx->data.Bp;
+    MPI_Bcast(B, ctx->data.nb * ctx->data.panel, MPI_FLOAT, bOwner,
+              ctx->cart.commCol);
+
+    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, ctx->data.mb,
+                ctx->data.nb,
+                ctx->data.panel,               // M, N, K
+                1.0f,                          // alpha
+                ctx->data.Ap, ctx->data.panel, // A and its leading dimension
+                B, ctx->data.nb,               // B and its leading dimension
+                1.0f,                          // beta = 1 -> accumulate into Cl
+                ctx->data.Cl, ctx->data.nb);   // C and its leading dimension
   }
+
+  // Collect local blocks back into the root process.
+  // Each rank sends its local Cl into the root contiguous stage buffer
+  MPI_Gather(ctx->data.Cl, ctx->data.blk, MPI_FLOAT, ctx->data.stageBuffer,
+             ctx->data.blk, MPI_FLOAT, ROOT_RANK, ctx->cart.commGrid);
+  if (ctx->isRoot) {
+    unpack_block(ctx, ctx->data.C);
+  }
+
+  MPI_Barrier(ctx->cart.commGrid);
+  finish_time(&timer);
+
+  return timer;
 }
 
-static void packblk(const float *full, float *packed, int N, int pr, int pc) {
-  int mb = N / pr;
-  int nb = N / pc;
-
-  size_t blockSz = (size_t)mb * nb;
-  size_t rowBytes = (size_t)nb * sizeof(float);
-
-  for (int r = 0; r < pr * pc; r++) {
-    int gridRow = r / pc;
-    int gridCol = r % pc;
-
-    size_t firstRow = (size_t)gridRow * mb;
-    size_t firstCol = (size_t)gridCol * nb;
-
-    float *block = &packed[r * blockSz];
-
-    for (int i = 0; i < mb; i++) {
-      const float *srcRow = &full[(firstRow + i) * N + firstCol];
-      float *dstRow = &block[(size_t)i * nb];
-      memcpy(dstRow, srcRow, rowBytes);
-    }
-  }
-}
-
-static void unpackblk(const float *packed, float *full, int N, int pr, int pc) {
-  int mb = N / pr;
-  int nb = N / pc;
-
-  size_t blockSz = (size_t)mb * nb;
-  size_t rowBytes = (size_t)nb * sizeof(float);
-
-  for (int r = 0; r < pr * pc; r++) {
-    int gridRow = r / pc;
-    int gridCol = r % pc;
-
-    size_t firstRow = (size_t)gridRow * mb;
-    size_t firstCol = (size_t)gridCol * nb;
-
-    const float *block = &packed[r * blockSz];
-
-    for (int i = 0; i < mb; i++) {
-      const float *srcRow = &block[(size_t)i * nb];
-      float *dstRow = &full[(firstRow + i) * N + firstCol];
-      memcpy(dstRow, srcRow, rowBytes);
-    }
-  }
-}
+//===------------------------------------------------------------------------===
+// Main
+//===------------------------------------------------------------------------===
 
 int main(int argc, char **argv) {
-  MPI_Init(NULL, NULL);
-
-  int rank, size;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-  int dims[2] = {0, 0};
-  MPI_Dims_create(size, 2, dims);
-  int prows = dims[0];
-  int pcols = dims[1];
-
-  /// ===============
-  /// Initialization
-  /// ===============
+  MpiContext ctx = mpi_init();
 
   int params[2] = {
       0, /* N */
       0  /* T */
   };
-  if (rank == ROOT) {
+  if (ctx.isRoot) {
     if (argc < 4) {
       fprintf(stderr, "Wrong number of arguments");
       fprintf(stderr, "Usage: %s <N> <T> output.csv \n", argv[0]);
@@ -130,134 +109,34 @@ int main(int argc, char **argv) {
     params[0] = N;
     params[1] = T;
   }
-  MPI_Bcast(params, 2, MPI_INT, ROOT, MPI_COMM_WORLD);
+  MPI_Bcast(params, 2, MPI_INT, ROOT_RANK, MPI_COMM_WORLD);
 
   int N = params[0];
   int T = params[1];
 
-  // Local block rows and columns
-  int mb = N / prows;
-  int nb = N / pcols;
+  mpi_data_init(&ctx, N, T);
 
-  // Elements per local block
-  int blk = mb * nb;
-
-  // Panel width
-  int panel = gcd(mb, nb);
-
-  // Number of panels along the width of the matrix
-  int steps = N / panel;
-
-  /// ===============
-  /// Grid Building
-  /// ===============
-
-  int periods[2] = {0, 0};
-  int coords[2] = {0, 0};
-  MPI_Comm grid, rowComm, colComm;
-
-  // Builds a new communicator (grid) with a 2D layout.
-  MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &grid);
-
-  // Gets the coords of this node in this new system
-  MPI_Cart_coords(grid, rank, 2, coords);
-  int myrow = coords[0];
-  int mycol = coords[1];
-
-  // Define the communication channel for the row and the column
-  int rowDims[2] = {0, 1};
-  int colDims[2] = {1, 0};
-  MPI_Cart_sub(grid, rowDims, &rowComm);
-  MPI_Cart_sub(grid, colDims, &colComm);
-
-  /// ===============
-  /// Allocation
-  /// ===============
-
-  float *Al = malloc(sizeof(float) * blk);
-  float *Bl = malloc(sizeof(float) * blk);
-  float *Ap = malloc(sizeof(float) * mb * panel);
-  float *Bp = malloc(sizeof(float) * nb * panel);
-  float *Cl = calloc(blk, sizeof(float));
-
-  // Root holds the full matrices and one block-ordered staging buffer
-  float *A = NULL;
-  float *B = NULL;
-  float *C = NULL;
-  float *packed = NULL;
-  if (rank == ROOT) {
-    size_t full = N * N * sizeof(float);
-    A = malloc(full);
-    B = malloc(full);
-    C = malloc(full);
-    packed = malloc(full);
-    mat_fill(A, N);
-    mat_fill(B, N);
+  if (ctx.isRoot) {
+    pack_block(&ctx, ctx.data.A);
   }
+  MPI_Scatter(ctx.data.stageBuffer, ctx.data.blk, MPI_FLOAT, ctx.data.Al,
+              ctx.data.blk, MPI_FLOAT, ROOT_RANK, ctx.cart.commGrid);
 
-  if (rank == ROOT) {
-    packblk(A, packed, N, prows, pcols);
+  if (ctx.isRoot) {
+    pack_block(&ctx, ctx.data.B);
   }
-  MPI_Scatter(packed, blk, MPI_FLOAT, Al, blk, MPI_FLOAT, ROOT, grid);
+  MPI_Scatter(ctx.data.stageBuffer, ctx.data.blk, MPI_FLOAT, ctx.data.Bl,
+              ctx.data.blk, MPI_FLOAT, ROOT_RANK, ctx.cart.commGrid);
 
-  if (rank == ROOT) {
-    packblk(B, packed, N, prows, pcols);
-  }
-  MPI_Scatter(packed, blk, MPI_FLOAT, Bl, blk, MPI_FLOAT, ROOT, grid);
+  TimeSpend timer = summa(&ctx);
 
-  /// ===============
-  /// SUMMA
-  /// ===============
-  timespec before;
-  timespec after;
-
-  MPI_Barrier(grid);
-  clock_gettime(CLOCK_MONOTONIC, &before);
-  for (int s = 0; s < steps; s++) {
-    int k0 = s * panel;
-    int aOwner = k0 / nb;
-    int aOff = k0 % nb;
-
-    if (mycol == aOwner) {
-      for (int i = 0; i < mb; i++) {
-        size_t panelIdx = (size_t)i * panel;
-        size_t localIdx = (size_t)i * nb + aOff;
-        memcpy(&Ap[panelIdx], &Al[localIdx], panel * sizeof(float));
-      }
-    }
-    MPI_Bcast(Ap, mb * panel, MPI_FLOAT, aOwner, rowComm);
-
-    int bOwner = k0 / mb;
-    int bOff = k0 % mb;
-    float *B = (myrow == bOwner) ? &Bl[(size_t)bOff * nb] : Bp;
-    MPI_Bcast(B, nb * panel, MPI_FLOAT, bOwner, colComm);
-
-    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, mb, nb,
-                panel,     // M, N, K
-                1.0f,      // alpha
-                Ap, panel, // A and its leading dimension
-                B, nb,     // B and its leading dimension
-                1.0f,      // beta = 1 -> accumulate into Cl
-                Cl, nb);   // C and its leading dimension
-  }
-  MPI_Barrier(grid);
-  clock_gettime(CLOCK_MONOTONIC, &after);
-
-  MPI_Gather(Cl, blk, MPI_FLOAT, packed, blk, MPI_FLOAT, 0, grid);
-  if (rank == 0) {
-    unpackblk(packed, C, N, prows, pcols);
-
+  if (ctx.isRoot) {
     FILE *file = fopen(argv[3], "w");
-    mat_print(C, N, file);
+    matrix_print(ctx.data.C, (size_t)N, file);
     fclose(file);
-
-    fprintf(stdout, "%d,%dx%d,%ld\n", size, N, N,
-            after.tv_nsec - before.tv_nsec);
+    fprintf(stdout, "%d,%dx%d,%ld\n", ctx.worldSz, N, N, elapsed_time(&timer));
   }
 
-  MPI_Comm_free(&rowComm);
-  MPI_Comm_free(&colComm);
-  MPI_Comm_free(&grid);
-  MPI_Finalize();
+  mpi_finish(&ctx);
   return 0;
 }
