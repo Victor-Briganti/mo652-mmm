@@ -3,9 +3,13 @@ import sys
 import numpy as np
 
 
+def generate_matrix(size):
+    i, j = np.indices((size, size), dtype=np.int64)
+    return ((i * 7 + j * 13) % 9 - 4).astype(np.float32)
+
+
 def matmul(size):
-    A = [x for x in range(size * size)]
-    A = np.array(A).reshape(size, size)
+    A = generate_matrix(size)
     B = A.copy()
     return A @ B
 
