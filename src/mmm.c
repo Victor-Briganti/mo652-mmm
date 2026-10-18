@@ -1,3 +1,4 @@
+#include "utils.h"
 #include <mpi.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -6,29 +7,6 @@
 #include <time.h>
 
 #define ROOT (0)
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-
-typedef struct timespec timespec;
-
-static int gcd(int a, int b) {
-  while (b != 0) {
-    int t = a % b;
-    a = b;
-    b = t;
-  }
-
-  return a;
-}
-
-static void mat_fill(float *A, size_t size) {
-  float x = 0.0;
-  for (size_t i = 0; i < size; i++) {
-    for (size_t j = 0; j < size; j++) {
-      A[i * size + j] = x;
-      x++;
-    }
-  }
-}
 
 static void matmul(int m, int n, int kd, const float *A, int lda,
                    const float *B, int ldb, float *restrict C, int ldc, int T) {
@@ -45,19 +23,6 @@ static void matmul(int m, int n, int kd, const float *A, int lda,
               C[(size_t)i * ldc + j] += a * B[(size_t)k * ldb + j];
           }
       }
-}
-
-static void mat_print(float *A, size_t size, FILE *file) {
-  for (size_t i = 0; i < size; i++) {
-    for (size_t j = 0; j < size; j++) {
-      fprintf(file, "%f", A[i * size + j]);
-
-      if (j < size - 1) {
-        fprintf(file, ",");
-      }
-    }
-    fprintf(file, "\n");
-  }
 }
 
 static void packblk(const float *full, float *packed, int N, int pr, int pc) {
@@ -207,8 +172,8 @@ int main(int argc, char **argv) {
     B = malloc(full);
     C = malloc(full);
     packed = malloc(full);
-    mat_fill(A, N);
-    mat_fill(B, N);
+    matrix_fill(A, N);
+    matrix_fill(B, N);
   }
 
   if (rank == ROOT) {
@@ -224,11 +189,10 @@ int main(int argc, char **argv) {
   /// ===============
   /// SUMMA
   /// ===============
-  timespec before;
-  timespec after;
+  TimeSpend timer;
 
   MPI_Barrier(grid);
-  clock_gettime(CLOCK_MONOTONIC, &before);
+  start_time(&timer);
   for (int s = 0; s < steps; s++) {
     int k0 = s * panel;
     int aOwner = k0 / nb;
@@ -251,18 +215,17 @@ int main(int argc, char **argv) {
     matmul(mb, nb, panel, Ap, panel, B, nb, Cl, nb, T);
   }
   MPI_Barrier(grid);
-  clock_gettime(CLOCK_MONOTONIC, &after);
+  finish_time(&timer);
 
   MPI_Gather(Cl, blk, MPI_FLOAT, packed, blk, MPI_FLOAT, 0, grid);
   if (rank == 0) {
     unpackblk(packed, C, N, prows, pcols);
 
     FILE *file = fopen(argv[3], "w");
-    mat_print(C, N, file);
+    matrix_print(C, (size_t)N, file);
     fclose(file);
 
-    fprintf(stdout, "%d,%dx%d,%ld\n", size, N, N,
-            after.tv_nsec - before.tv_nsec);
+    fprintf(stdout, "%d,%dx%d,%ld\n", size, N, N, elapsed_time(&timer));
   }
 
   MPI_Comm_free(&rowComm);

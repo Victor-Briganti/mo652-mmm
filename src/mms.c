@@ -38,23 +38,19 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  timespec before;
-  timespec after;
-
+  TimeSpend timer;
   FILE *file = fopen(argv[2], "w");
-
   float *A = malloc(sizeof(float) * N * N);
   float *B = malloc(sizeof(float) * N * N);
   float *C = calloc(N * N, sizeof(float));
-
   matrix_fill(A, N);
   matrix_fill(B, N);
 
-  clock_gettime(CLOCK_MONOTONIC, &before);
+  start_time(&timer);
   matmul(A, B, C, N);
-  clock_gettime(CLOCK_MONOTONIC, &after);
+  finish_time(&timer);
 
   matrix_print(C, N, file);
-  fprintf(stdout, "1,1,%lux%lu,%ld\n", N, N, elapsed_time(before, after));
+  fprintf(stdout, "1,1,%lux%lu,%ld\n", N, N, elapsed_time(&timer));
   return 0;
 }
