@@ -66,5 +66,10 @@ int main(int argc, char **argv) {
 
   matrix_print(C, N, file);
   fprintf(stdout, "1,1,%lux%lu,%ld\n", N, N, elapsed_time(&timer));
+
+  free(A);
+  free(B);
+  free(C);
+  fclose(file);
   return 0;
 }

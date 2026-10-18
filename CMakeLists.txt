@@ -10,7 +10,7 @@ set(BLA_VENDOR OpenBLAS)
 find_package(BLAS REQUIRED)
 
 add_executable(mms src/mms.c)
-target_link_libraries(mms)
+target_link_libraries(mms PRIVATE MPI::MPI_C)
 
 add_executable(mmm src/mmm.c)
 target_link_libraries(mmm PRIVATE MPI::MPI_C)
