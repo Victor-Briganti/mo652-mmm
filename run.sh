@@ -18,9 +18,13 @@ module load openblas/0.3.30-gcc-15.2.0 gcc/15.2.0 cmake/4.3.1 ninja/1.11.1-gcc-1
 source $WORKDIR/spack/share/spack/setup-env.sh
 spack env activate trab02
 
-export OMP_NUM_THREADS=1
-$WORKDIR/temp/mmmb
-export OMP_NUM_THREADS=2
-$WORKDIR/temp/mmmb
-export OMP_NUM_THREADS=4
-$WORKDIR/temp/mmmb
+
+mpirun -genv OMP_NUM_THREADS=1 -np 1 $WORKDIR/temp/mmm
+mpirun -genv OMP_NUM_THREADS=2 -np 1 $WORKDIR/temp/mmm
+mpirun -genv OMP_NUM_THREADS=4 -np 1 $WORKDIR/temp/mmm
+mpirun -genv OMP_NUM_THREADS=1 -np 2 $WORKDIR/temp/mmm
+mpirun -genv OMP_NUM_THREADS=2 -np 2 $WORKDIR/temp/mmm
+mpirun -genv OMP_NUM_THREADS=4 -np 2 $WORKDIR/temp/mmm
+mpirun -genv OMP_NUM_THREADS=1 -np 4 $WORKDIR/temp/mmm
+mpirun -genv OMP_NUM_THREADS=2 -np 4 $WORKDIR/temp/mmm
+mpirun -genv OMP_NUM_THREADS=4 -np 4 $WORKDIR/temp/mmm
