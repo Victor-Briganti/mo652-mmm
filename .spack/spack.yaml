@@ -7,7 +7,6 @@ spack:
   specs:
   - ucx+cma+dc+ib_hw_tm+mlx5_dv+rc+rdmacm+ud+verbs
   - mpich@5.0.1 device=ch4 netmod=ucx
-  - openblas~bignuma~ilp64+ipo+pic+shared build_system=cmake threads=openmp
   view: true
   concretizer:
     unify: true
