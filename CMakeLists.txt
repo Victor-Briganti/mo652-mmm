@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.18)
 
 project(MMM C)
 
@@ -13,11 +13,11 @@ find_package(MPI REQUIRED)
 set(BLA_VENDOR OpenBLAS)
 find_package(BLAS REQUIRED)
 
-add_executable(mms src/mms.c)
-target_link_libraries(mms PRIVATE MPI::MPI_C)
+find_path(CBLAS_INCLUDE_DIR cblas.h PATH_SUFFIXES openblas REQUIRED)
+message(STATUS "Found cblas.h in: ${CBLAS_INCLUDE_DIR}")
 
-add_executable(mmm src/mmm.c)
-target_link_libraries(mmm PRIVATE MPI::MPI_C)
-
-add_executable(mmmb src/mmmb.c)
-target_link_libraries(mmmb PRIVATE MPI::MPI_C BLAS::BLAS)
+foreach(t mms mmm mmmb)
+  add_executable(${t} src/${t}.c)
+  target_include_directories(${t} PRIVATE ${CBLAS_INCLUDE_DIR})
+  target_link_libraries(${t} PRIVATE MPI::MPI_C BLAS::BLAS)
+endforeach()
