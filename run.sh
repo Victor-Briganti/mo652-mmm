@@ -65,8 +65,9 @@ measure() {
 
 # Usage: mpi <procs> <threads>, ranks per node leave room for their threads
 mpi() {
+  echo "threads $2"
   echo "mpirun -np $1 -ppn $((CPN / $2)) -machinefile $PBS_NODEFILE" \
-    "-genv OMP_NUM_THREADS $2 -genv OPENBLAS_NUM_THREADS $2"
+    "-genv OMP_NUM_THREADS $2"
 }
 
 for N in $SIZES; do
