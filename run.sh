@@ -2,10 +2,7 @@
 #PBS -N mmm
 #PBS -q testes
 #PBS -l nodes=1:ppn=4
-#PBS -o mmm.out
-#PBS -e mmm.err
 #
-# Other queues (the process counts adapt to the allocation):
 #   #PBS -q paralela
 #   #PBS -l nodes=8:ppn=128
 #
@@ -13,9 +10,9 @@
 #   #PBS -l nodes=11:ppn=48
 
 BIN=$PBS_O_WORKDIR/build
-RESULTS=$PBS_O_WORKDIR/results
-CSV=$RESULTS/results.csv
-LOG=$RESULTS/run.log
+RESULTS=${RESULTS:-$PBS_O_WORKDIR/results}
+CSV=${CSV:-$RESULTS/results.csv}
+LOG=${LOG:-$RESULTS/run.log}
 
 SIZES=${SIZES:-"1024 4096 8192"}
 RUNS=3
@@ -42,7 +39,7 @@ for ((t = 1; t <= CPN; t *= 2)); do
   THREADS="$THREADS $t"
 done
 
-mkdir -p $RESULTS
+mkdir -p $RESULTS $(dirname $CSV) $(dirname $LOG)
 if [ ! -f $CSV ]; then
   echo "run,version,procs,grid,threads,N,tile,time_ns,verify,max_abs,max_rel" > $CSV
 fi
