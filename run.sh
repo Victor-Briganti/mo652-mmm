@@ -57,9 +57,8 @@ bench() {
 
 # Usage: measure <cmd...>, RUNS executions where only the first one is verified
 measure() {
-  bench 1 "$@" $N -v
-  for ((r = 2; r <= RUNS; r++)); do
-    bench $r "$@" $N
+  for ((r = 1; r <= RUNS; r++)); do
+    bench $r "$@" $N -v
   done
 }
 
@@ -70,10 +69,7 @@ mpi() {
 }
 
 for N in $SIZES; do
-  # The serial version has no verification
-  for ((r = 0; r <= RUNS; r++)); do
-    bench $r $BIN/mms $N
-  done
+  measure $BIN/mms
 
   for np in $PROCS; do
     cols=1

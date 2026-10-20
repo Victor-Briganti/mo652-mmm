@@ -291,8 +291,8 @@ static inline Verification matrix_verify(const float *C, const float *A,
   v.tol = (double)N * FLT_EPSILON;
   v.ok = v.maxRel <= v.tol;
 
-  fprintf(stderr, "Verification %s: max_abs=%.3e max_rel=%.3e tol=%.3e\n",
-          v.ok ? "OK" : "FAILED", v.maxAbs, v.maxRel, v.tol);
+  // fprintf(stderr, "Verification %s: max_abs=%.3e max_rel=%.3e tol=%.3e\n",
+  //         v.ok ? "OK" : "FAILED", v.maxAbs, v.maxRel, v.tol);
   return v;
 }
 
