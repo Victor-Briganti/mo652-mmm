@@ -263,13 +263,13 @@ static inline void matrix_fill(float *M, size_t N) {
   }
 }
 
-/// Compares the result with the serial reference
+/// Compares the result with the OpenBLAS reference
 static inline Verification matrix_verify(const float *C, const float *A,
                                          const float *B, size_t N) {
   Verification v = {0};
 
   float *R = calloc(N * N, sizeof(float));
-  sgemm(A, B, R, N);
+  cgemm((int)N, (int)N, (int)N, A, (int)N, B, (int)N, R, (int)N, 0);
 
   double refMax = 0.0;
   for (size_t idx = 0; idx < N * N; idx++) {

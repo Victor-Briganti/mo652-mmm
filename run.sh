@@ -55,10 +55,11 @@ bench() {
   "$@" 2>> $LOG | sed "s/^/$run,/" >> $CSV
 }
 
-# Usage: measure <cmd...>, one warmup (with verification) plus RUNS executions
+# Usage: measure <cmd...>, RUNS executions where only the first one is verified
 measure() {
-  for ((r = 1; r <= RUNS; r++)); do
-    bench $r "$@" $N -v
+  bench 1 "$@" $N -v
+  for ((r = 2; r <= RUNS; r++)); do
+    bench $r "$@" $N
   done
 }
 
