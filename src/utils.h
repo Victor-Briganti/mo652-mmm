@@ -255,8 +255,10 @@ static inline void matrix_print(const float *A, size_t size, FILE *file) {
 static inline void matrix_fill(float *M, size_t N) {
   for (size_t i = 0; i < N; i++) {
     for (size_t j = 0; j < N; j++) {
-      // Generates a pseudo random float
-      M[i * N + j] = (float)((int)((i * 7 + j * 13) % 9 - 4));
+      // Generates a pseudo random float between [-4, 5)
+      float whole = (float)((int)((i * 7 + j * 13) % 9) - 4);
+      float frac = (float)((i * 7919 + j * 104729) % 10000) / 10000.0f;
+      M[i * N + j] = whole + frac;
     }
   }
 }

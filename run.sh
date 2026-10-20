@@ -57,9 +57,8 @@ bench() {
 
 # Usage: measure <cmd...>, one warmup (with verification) plus RUNS executions
 measure() {
-  bench 0 "$@" -v $N
   for ((r = 1; r <= RUNS; r++)); do
-    bench $r "$@" $N
+    bench $r "$@" $N -v
   done
 }
 
