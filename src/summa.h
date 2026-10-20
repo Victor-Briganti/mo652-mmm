@@ -160,6 +160,7 @@ static inline int summa(int argc, char **argv, const SummaVariant *variant) {
   if (ctx.isRoot) {
     Verification v = {0};
     if (opts.verify) {
+      openblas_set_num_threads(1);
       v = matrix_verify(ctx.data.C, ctx.data.A, ctx.data.B, (size_t)opts.N);
       status = v.ok ? EXIT_SUCCESS : EXIT_FAILURE;
     }
@@ -177,8 +178,8 @@ static inline int summa(int argc, char **argv, const SummaVariant *variant) {
 
     print_result(variant->name, ctx.worldSz, ctx.cart.procRows,
                  ctx.cart.procCols, variant->threads, opts.N,
-                 variant->usesTile ? opts.T : 0,
-                 elapsed_time(&timer), opts.verify ? &v : NULL);
+                 variant->usesTile ? opts.T : 0, elapsed_time(&timer),
+                 opts.verify ? &v : NULL);
   }
 
   mpi_finish(&ctx);
