@@ -24,6 +24,13 @@ int main(int argc, char **argv) {
   sgemm(A, B, C, N);
   finish_time(&timer);
 
+  int status = EXIT_SUCCESS;
+  Verification v = {0};
+  if (opts.verify) {
+    v = matrix_verify(C, A, B, N);
+    status = v.ok ? EXIT_SUCCESS : EXIT_FAILURE;
+  }
+
   if (opts.output) {
     FILE *file = fopen(opts.output, "w");
     if (file == NULL) {
@@ -35,10 +42,11 @@ int main(int argc, char **argv) {
     matrix_print(C, opts.N, file);
   }
 
-  print_result("serial", 1, 1, 1, 1, opts.N, 0,  elapsed_time(&timer), NULL);
+  print_result("serial", 1, 1, 1, 1, opts.N, 0, elapsed_time(&timer),
+               opts.verify ? &v : NULL);
 
   free(A);
   free(B);
   free(C);
-  return EXIT_SUCCESS;
+  return status;
 }

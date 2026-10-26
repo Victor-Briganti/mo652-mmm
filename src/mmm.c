@@ -5,14 +5,11 @@
 //===------------------------------------------------------------------------===
 
 int main(int argc, char **argv) {
-  MPI_Init(NULL, NULL);
-
-  int rank, size;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-  printf("%d of %d: %d\n", rank, size, openblas_get_num_threads());
-
-  MPI_Finalize();
-  return 0; 
+  const SummaVariant variant = {
+      .name = "mpi",
+      .gemm = gemm,
+      .usesTile = true,
+      .threads = 1,
+  };
+  return summa(argc, argv, &variant);
 }

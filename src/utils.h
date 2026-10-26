@@ -255,19 +255,21 @@ static inline void matrix_print(const float *A, size_t size, FILE *file) {
 static inline void matrix_fill(float *M, size_t N) {
   for (size_t i = 0; i < N; i++) {
     for (size_t j = 0; j < N; j++) {
-      // Generates a pseudo random float
-      M[i * N + j] = (float)((int)((i * 7 + j * 13) % 9 - 4));
+      // Generates a pseudo random float between [-4, 5)
+      float whole = (float)((int)((i * 7 + j * 13) % 9) - 4);
+      float frac = (float)((i * 7919 + j * 104729) % 10000) / 10000.0f;
+      M[i * N + j] = whole + frac;
     }
   }
 }
 
-/// Compares the result with the serial reference
+/// Compares the result with the OpenBLAS reference
 static inline Verification matrix_verify(const float *C, const float *A,
                                          const float *B, size_t N) {
   Verification v = {0};
 
   float *R = calloc(N * N, sizeof(float));
-  sgemm(A, B, R, N);
+  cgemm((int)N, (int)N, (int)N, A, (int)N, B, (int)N, R, (int)N, 0);
 
   double refMax = 0.0;
   for (size_t idx = 0; idx < N * N; idx++) {
@@ -289,8 +291,8 @@ static inline Verification matrix_verify(const float *C, const float *A,
   v.tol = (double)N * FLT_EPSILON;
   v.ok = v.maxRel <= v.tol;
 
-  fprintf(stderr, "Verification %s: max_abs=%.3e max_rel=%.3e tol=%.3e\n",
-          v.ok ? "OK" : "FAILED", v.maxAbs, v.maxRel, v.tol);
+  // fprintf(stderr, "Verification %s: max_abs=%.3e max_rel=%.3e tol=%.3e\n",
+  //         v.ok ? "OK" : "FAILED", v.maxAbs, v.maxRel, v.tol);
   return v;
 }
 
