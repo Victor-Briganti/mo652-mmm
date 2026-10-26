@@ -7,10 +7,10 @@
 // Variants
 //===------------------------------------------------------------------------===
 
-/// Local block multiplication: C (m x n) += A (m x kd) * B (kd x n).
+/// Pointer for matrix multiplication
 ///
 /// lda, ldb, ldc: Leading dimensions of A, B and C.
-/// T: Tile used for cache blocking (ignored by kernels that do their own).
+/// T: Tile used for cache blocking.
 typedef void (*LocalGemm)(int m, int n, int kd, const float *A, int lda,
                           const float *B, int ldb, float *restrict C, int ldc,
                           int T);
@@ -47,17 +47,7 @@ static inline void summa_distribute(MpiContext *ctx) {
 /// iteration, ranks broadcast a narrow slice ("panel") of A along their row and
 /// a slice of B down their column, updating their local submatrix C with
 /// `gemm`.
-///
-/// Once all panels are processed, the distributed blocks of C are gathered and
-/// unpacked into standard row-major order on the root rank. The measured time
-/// covers the panel loop, the gather and the unpack, but not the initial
-/// scatter.
-static inline TimeSpend summa_exec(MpiContext *ctx, LocalGemm gemm) {
-  TimeSpend timer;
-
-  // Syncrhonize all ranks before measuring time
-  MPI_Barrier(ctx->cart.commGrid);
-  start_time(&timer);
+static inline void summa_exec(MpiContext *ctx, LocalGemm gemm) {
   for (int s = 0; s < ctx->data.steps; s++) {
     // Matrix coordinate where the tile begins
     int k0 = s * ctx->data.panel;
@@ -107,11 +97,6 @@ static inline TimeSpend summa_exec(MpiContext *ctx, LocalGemm gemm) {
   if (ctx->isRoot) {
     unpack_block(ctx, ctx->data.C);
   }
-
-  MPI_Barrier(ctx->cart.commGrid);
-  finish_time(&timer);
-
-  return timer;
 }
 
 //===------------------------------------------------------------------------===
@@ -152,9 +137,14 @@ static inline int summa(int argc, char **argv, const SummaVariant *variant) {
     }
   }
 
-  summa_distribute(&ctx);
+  TimeSpend timer;
 
-  TimeSpend timer = summa_exec(&ctx, variant->gemm);
+  MPI_Barrier(ctx.cart.commGrid);
+  start_time(&timer);
+  summa_distribute(&ctx);
+  summa_exec(&ctx, variant->gemm);
+  MPI_Barrier(ctx.cart.commGrid);
+  finish_time(&timer);
 
   int status = EXIT_SUCCESS;
   if (ctx.isRoot) {

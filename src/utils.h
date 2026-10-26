@@ -19,10 +19,6 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-/// Columns of the CSV line printed to stdout by every version.
-#define RESULT_HEADER                                                          \
-  "version,procs,grid,threads,N,tile,time_ns,verify,max_abs,max_rel"
-
 //===------------------------------------------------------------------------===
 // Structs
 //===------------------------------------------------------------------------===
@@ -124,7 +120,6 @@ static inline void usage(const char *prog) {
       prog);
 }
 
-/// Parses the command line shared by all versions. Returns false on error.
 static inline bool parse_options(int argc, char **argv, Parameters *opts) {
   *opts = (Parameters){.T = 64};
 
@@ -181,10 +176,7 @@ static inline int64_t elapsed_time(TimeSpend *timer) {
 // Matrix Utils
 //===------------------------------------------------------------------------===
 
-/// Serial matrix multiplication.
-///
-/// Uses the i-k-j order so the innermost loop streams rows of B and C while
-/// A[i][k] stays in a register.
+/// Serial matrix multiplication
 static inline void sgemm(const float *A, const float *B, float *restrict C,
                          size_t N) {
   for (size_t i = 0; i < N; i++) {
@@ -195,6 +187,13 @@ static inline void sgemm(const float *A, const float *B, float *restrict C,
       }
     }
   }
+}
+
+/// BLAS matrix multiplication
+static void cgemm(int m, int n, int kd, const float *A, int lda, const float *B,
+                  int ldb, float *restrict C, int ldc, int T) {
+  cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, kd, 1.0f, A, lda,
+              B, ldb, 1.0f, C, ldc);
 }
 
 /// Performs a retangular matrix multiplication using tiling.
@@ -229,16 +228,6 @@ inline static void gemm(int m, int n, int kd, const float *A, int lda,
       }
 }
 
-static void cgemm(int m, int n, int kd, const float *A, int lda, const float *B,
-                  int ldb, float *restrict C, int ldc, int T) {
-  cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, kd, // M, N, K
-              1.0f,                                                // alpha
-              A, lda, // A and its leading dimension
-              B, ldb, // B and its leading dimension
-              1.0f,   // beta = 1 -> accumulate into C
-              C, ldc);
-}
-
 static inline void matrix_print(const float *A, size_t size, FILE *file) {
   for (size_t i = 0; i < size; i++) {
     for (size_t j = 0; j < size; j++) {
@@ -263,7 +252,7 @@ static inline void matrix_fill(float *M, size_t N) {
   }
 }
 
-/// Compares the result with the OpenBLAS reference
+/// Compares the result with the BLAS reference
 static inline Verification matrix_verify(const float *C, const float *A,
                                          const float *B, size_t N) {
   Verification v = {0};
@@ -291,8 +280,6 @@ static inline Verification matrix_verify(const float *C, const float *A,
   v.tol = (double)N * FLT_EPSILON;
   v.ok = v.maxRel <= v.tol;
 
-  // fprintf(stderr, "Verification %s: max_abs=%.3e max_rel=%.3e tol=%.3e\n",
-  //         v.ok ? "OK" : "FAILED", v.maxAbs, v.maxRel, v.tol);
   return v;
 }
 
@@ -337,7 +324,7 @@ static inline MpiContext mpi_init() {
   ctx.cart.x = coords[0];
   ctx.cart.y = coords[1];
 
-  // Defines teh coomunication channel for the row and the column
+  // Defines teh communication channel for the row and the column
   int dimsRow[2] = {0, 1}; // Groups all nodes in the same row in a channel
   int dimsCol[2] = {1, 0}; // Groups all nodes in the same col in a channel
   MPI_Cart_sub(ctx.cart.commGrid, dimsRow, &ctx.cart.commRow);
