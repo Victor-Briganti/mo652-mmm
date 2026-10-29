@@ -23,6 +23,9 @@ TILES="32 64 128"
 
 cd $PBS_O_WORKDIR
 
+module purge
+module load ninja/1.11.1-gcc-12.2.0 cmake/3.31.8-gcc-12.2.0 gcc/15.2.0 openblas/0.3.30-gcc-15.2.0
+
 source $WORKDIR/spack/share/spack/setup-env.sh
 spack env activate trab02
 

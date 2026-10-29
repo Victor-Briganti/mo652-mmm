@@ -17,6 +17,8 @@ spack install
 The command to compile the project is based on the following:
 
 ```bash
+module purge
+module load ninja/1.11.1-gcc-12.2.0 cmake/3.31.8-gcc-12.2.0 gcc/15.2.0 openblas/0.3.30-gcc-15.2.0
 spack env activate trab02
 cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
