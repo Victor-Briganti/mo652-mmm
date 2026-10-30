@@ -1,8 +1,13 @@
 import argparse
+import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
+
+# A negrito global faz o matplotlib procurar o peso bold nas fontes de math
+# text, que não o têm; o aviso é inofensivo, pois nenhum gráfico usa math text.
+logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -69,10 +74,14 @@ def best_configs(agg):
 def setup_style():
     plt.rcParams.update(
         {
-            "font.size": 11,
-            "axes.titlesize": 12,
+            "font.size": 17,
+            "font.weight": "bold",
+            "axes.labelweight": "bold",
+            "axes.titlesize": 20,
             "axes.titleweight": "bold",
-            "axes.labelsize": 11,
+            "axes.labelsize": 18,
+            "xtick.labelsize": 16,
+            "ytick.labelsize": 16,
             "axes.edgecolor": "#555555",
             "axes.labelcolor": INK,
             "axes.spines.top": False,
@@ -82,9 +91,9 @@ def setup_style():
             "grid.linewidth": 0.7,
             "xtick.color": "#444444",
             "ytick.color": "#444444",
-            "legend.fontsize": 10,
+            "legend.fontsize": 16,
             "legend.frameon": False,
-            "figure.titlesize": 14,
+            "figure.titlesize": 24,
             "figure.titleweight": "bold",
             "figure.facecolor": "white",
             "savefig.facecolor": "white",
@@ -94,7 +103,7 @@ def setup_style():
     )
 
 
-def cores_axis(ax, label="Núcleos (Ranks MPI x Threads OpenBLAS)"):
+def cores_axis(ax, label="Núcleos (ranks x threads)"):
     ax.set_xscale("log", base=2)
     ax.set_xticks([1, 4, 16, 64, 256, 1024])
     ax.xaxis.set_major_formatter(lambda v, _: f"{v:g}")
@@ -183,7 +192,7 @@ def fig_speedup(best, agg):
             if v == "mpi":
                 xytext, coords, ha = (0.03, 0.04), "axes fraction", "left"
             else:
-                xytext, coords = (0, 36), "offset points"
+                xytext, coords = (0, 24), "offset points"
                 ha = "right" if top["cores"] >= 256 else "center"
             ax.annotate(
                 text,
@@ -192,7 +201,7 @@ def fig_speedup(best, agg):
                 textcoords=coords,
                 ha=ha,
                 va="bottom",
-                fontsize=9,
+                fontsize=13,
                 color=INK,
                 bbox={
                     "boxstyle": "round,pad=0.2",
@@ -211,12 +220,12 @@ def fig_speedup(best, agg):
 
         cores_axis(ax)
         ax.set_yscale("log")
-        ax.set_ylim(0.1, 3000)
+        ax.set_ylim(0.1, 10000)
         ax.set_title(f"n = {n}")
     axes[0].set_ylabel("Speedup (log)")
 
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="lower center", ncol=3, bbox_to_anchor=(0.5, -0.12))
+    fig.legend(handles, labels, loc="lower center", ncol=3, bbox_to_anchor=(0.5, -0.13))
     fig.suptitle("Speedup em Relação a Serial")
     fig.tight_layout()
     return fig
@@ -248,13 +257,13 @@ def fig_efficiency(best, agg):
 
     axes[0, 0].set_ylim(0, agg["efficiency"].max() * 1.1)
     axes[1, 0].set_ylim(0, max(1.45, agg["rel_eff"].max() * 1.1))
-    axes[0, 0].set_ylabel("Paralela vs. Serial")
-    axes[1, 0].set_ylabel("Paralela vs. Versão 1 Núcleo")
+    axes[0, 0].set_ylabel("vs. Serial")
+    axes[1, 0].set_ylabel("vs. 1 Núcleo")
 
     handles, labels = axes[0, 0].get_legend_handles_labels()
     handles.append(plt.Line2D([], [], color=REF, ls="--", lw=1.3))
     labels.append("100% eficiência")
-    fig.legend(handles, labels, loc="lower center", ncol=3, bbox_to_anchor=(0.5, -0.07))
+    fig.legend(handles, labels, loc="lower center", ncol=3, bbox_to_anchor=(0.5, -0.1))
     fig.suptitle("Eficiência por Entrada e Configuração")
     fig.tight_layout()
     return fig
@@ -283,11 +292,11 @@ def fig_error_by_version(agg):
                 f"{value:.1E}",
                 ha="center",
                 va="bottom",
-                fontsize=9.5,
+                fontsize=14,
                 color=INK,
             )
         ax.set_xticks(range(len(versions)), labels=[LABELS[v] for v in versions])
-        ax.tick_params(axis="x", length=0)
+        ax.tick_params(axis="x", length=0, labelsize=13)
         ax.grid(axis="x", visible=False)
         ax.set_title(f"n = {n}")
     top = agg[agg["version"] != "mpi_blas"]["max_rel"].max()
