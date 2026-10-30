@@ -24,14 +24,6 @@ cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-The spack system was not linking the BLAS library correctly, to fix this problem, I have setted the symbolic links using the following commands:
-
-```bash
-cd ~/spack/var/spack/environments/trab02/.spack-env/view/include
-ln -s $(spack location -i openblas)/include/openblas/cblas.h .
-ln -s $(spack location -i openblas)/include/openblas/openblas_config.h .
-```
-
 ## Executing
 
 This project generates three binaries:
