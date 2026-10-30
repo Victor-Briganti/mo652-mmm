@@ -26,6 +26,13 @@ INK = "#222222"
 
 def load_data(path):
     df = pd.read_csv(path)
+
+    # O CSV pode conter linhas de log do cluster (ex.: "Attaching ..."), que
+    # viram NaN e fazem o pandas ler as colunas inteiras como float.
+    df = df.dropna().reset_index(drop=True)
+    ints = ["procs", "threads", "N", "tile", "time_ns", "verify"]
+    df[ints] = df[ints].astype("int64")
+
     versions = set(df["version"])
     for version in ["serial", *PARALLEL]:
         if version not in versions:

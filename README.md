@@ -43,3 +43,29 @@ mpirun -np 8 ./build/mmmb 2000 -t 32 -v
 Where `2000` is the dimension of the matrix, the `-t` is the flag that specify the tile size (default 64). One last flag that is not showing in there is the flag `-o` that is used to store the matrix as a CSV file.
 
 **Obs:** In the MPI executions the size of the matrix must be divisible by the the number of processes.
+
+## Generating the Graphs
+
+The graphs in `graphs/` are generated from the benchmark results (`paralela/results.csv`, written by `run.sh`) by `scripts/generate_graphs.py`. To run it, first create a virtual environment and install the requirements:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Then execute the script:
+
+```bash
+python scripts/generate_graphs.py
+```
+
+By default it reads `paralela/results.csv` and saves the PNG figures in `graphs/`. The options are:
+
+- `--csv`: path of the benchmark CSV;
+- `--out`: directory where the figures are saved;
+- `--format`: output format (`png`, `pdf` or `all`).
+
+```bash
+python scripts/generate_graphs.py --csv testes/results.csv --out graphs --format all
+```
